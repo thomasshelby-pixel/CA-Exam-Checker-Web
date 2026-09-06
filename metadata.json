@@ -1,0 +1,6 @@
+{
+  "name": "CA Exam Checker AI",
+  "description": "Get your CA answer sheets evaluated by AI. Independent AI-powered answer sheet evaluation for CA Foundation, Intermediate, and Final students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
