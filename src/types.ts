@@ -159,6 +159,9 @@ export interface EvaluationReport {
   studentName: string;
   caLevel: CALevel;
   attempt: string;
+  /** Attempt-specific curriculum selected by the evaluator, when applicable. */
+  curriculumBasis?: string;
+  curriculumSourceUrl?: string;
   subjectId: string;
   subjectName: string;
   subjectCode?: string;
