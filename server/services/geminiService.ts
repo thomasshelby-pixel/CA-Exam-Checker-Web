@@ -18,7 +18,7 @@ let genAIClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn('GEMINI_API_KEY is not set in environment. AI evaluation will fallback to heuristic evaluator.');
+    console.warn('GEMINI_API_KEY is not set. Reliable AI evaluation is unavailable; synthetic marking is disabled.');
     return null;
   }
   if (!genAIClient) {
@@ -267,7 +267,7 @@ Respond with valid JSON conforming to the requested schema.
         accuracyScore = parsed.accuracyScore || 7;
       }
     } catch (err) {
-      console.warn('Gemini API call encountered an error, activating comprehensive domain fallback evaluator:', err);
+      console.warn('Gemini API call failed; evaluation will not substitute synthetic marks:', err);
     }
   }
 
