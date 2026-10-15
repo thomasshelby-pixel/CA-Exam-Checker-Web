@@ -7,6 +7,11 @@ import {
   QuestionModel,
   Amendment,
 } from '../../src/types';
+import {
+  filterTaxationAmendmentsForAttempt,
+  filterTaxationQuestionsForAttempt,
+  resolveTaxationCurriculumContext,
+} from './taxationCurriculum';
 
 let genAIClient: GoogleGenAI | null = null;
 
@@ -55,6 +60,14 @@ export async function runCAnswerSheetEvaluation(input: EvaluationInput): Promise
     applicableAmendments = [],
     onStageUpdate,
   } = input;
+
+  const taxationCurriculum = resolveTaxationCurriculumContext(caLevel, attempt, subject);
+  const evaluationModelQuestions = taxationCurriculum?.isNewEdition
+    ? filterTaxationQuestionsForAttempt(modelQuestions, attempt)
+    : modelQuestions;
+  const evaluationAmendments = taxationCurriculum?.isNewEdition
+    ? filterTaxationAmendmentsForAttempt(applicableAmendments, attempt)
+    : applicableAmendments;
 
   const updateStage = (stage: EvaluationReport['stage'], message: string) => {
     if (onStageUpdate) {
@@ -116,7 +129,7 @@ Number of Pages Attached: ${pages.length}
 
 Reference Model Questions in Repository:
 ${JSON.stringify(
-  modelQuestions.map((q) => ({
+  evaluationModelQuestions.map((q) => ({
     qNum: q.questionNumber,
     subQ: q.subQuestion,
     marks: q.maxMarks,
@@ -129,7 +142,10 @@ ${JSON.stringify(
 )}
 
 Applicable Amendments / Notifications:
-${JSON.stringify(applicableAmendments.map((a) => ({ title: a.title, ref: a.statutoryReference, summary: a.summary })))}
+${JSON.stringify(evaluationAmendments.map((a) => ({ title: a.title, ref: a.statutoryReference, summary: a.summary })))}
+
+Attempt-specific Taxation curriculum:
+${taxationCurriculum ? taxationCurriculum.promptContext : 'No Taxation curriculum context applies to this subject/level.'}
 
 EVALUATION RULES & INSTRUCTIONS:
 1. Identify all questions and sub-questions attempted by the candidate.
@@ -255,31 +271,13 @@ Respond with valid JSON conforming to the requested schema.
     }
   }
 
-  // Fallback domain evaluation if AI client was absent or did not return questions
+  // Never award fabricated marks from fixed demo examples when the model is unavailable.
+  // The evaluation API catches this error and restores the user's credit/free slot.
   if (evaluatedQuestions.length === 0) {
-    evaluatedQuestions = generateDomainEvaluation(subject, pages);
-    strengths = [
-      'Proper citation of relevant statutory provisions and accounting framework standards',
-      'Systematic stepwise layout of calculation working notes',
-      'Clear final conclusion highlighted prominently at the end of each sub-question',
-    ];
-    weaknesses = [
-      'Incomplete disclosure note required under ICAI presentation guidelines',
-      'Minor numerical rounding variance in intermediate depreciation/interest factor',
-      'Handwriting legibility dipped slightly in final page conclusion paragraphs',
-    ];
-    commonMistakes = [
-      'Omitted statement of alternative acceptable presentation method',
-      'Failed to cross-reference working note numbers in the main computation table',
-    ];
-    recommendations = [
-      'Always state both methods whenever an AS/Ind AS or Tax law permits options before adopting one.',
-      'Leave 2 blank lines between question parts and write question numbers clearly in center/left margin.',
-      'Ensure every number used in the final answer is mapped directly to a labeled Working Note (W.N. 1, W.N. 2).',
-    ];
-    overallSummary = `Competent performance across ${subject.name}. Candidate demonstrates good theoretical groundwork. Marks were primarily deducted for minor omission of statutory sub-clauses and formatting irregularities in working notes.`;
-    presentationScore = 7.5;
-    accuracyScore = 7.0;
+    const reason = ai
+      ? 'The AI model returned no usable question-level evaluation.'
+      : 'GEMINI_API_KEY is not configured, so reliable AI evaluation is unavailable.';
+    throw new Error(`Reliable evaluation could not be completed: ${reason} No synthetic marks were generated.`);
   }
 
   updateStage('CALCULATING_MARKS', 'Computing question-level step scores and strict mathematical tally...');
@@ -364,6 +362,8 @@ Respond with valid JSON conforming to the requested schema.
     commonMistakes,
     actionableRecommendations: recommendations,
     overallSummary,
+    curriculumBasis: taxationCurriculum?.editionLabel,
+    curriculumSourceUrl: taxationCurriculum?.officialSources.join(' | '),
     source: 'INDIVIDUAL_CREDIT',
     createdAt: new Date().toISOString(),
     completedAt: new Date().toISOString(),
